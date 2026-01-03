@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>FocusMate – Study Focus Analyzer</title>
+
+
+    <style>
+        body {
+            background: linear-gradient(to right, #4e54c8, #8f94fb);
+            color: white;
+            font-family: Arial, sans-serif;
+            padding: 30px;
+        }
+
+        h1 { text-align: center; font-size: 32px; }
+
+        .container { display: flex; gap: 30px; align-items: center; }
+        .left { width: 55%; }
+        .right { width: 45%; text-align: center; }
+
+        .right img {
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+
+        .page { display: none; }
+        .active { display: block; }
+
+        .card {
+            background: white;
+            color: black;
+            padding: 20px;
+            margin: 10px 0;
+            border-radius: 12px;
+            font-size: 20px;
+        }
+
+        button {
+            padding: 14px 30px;
+            font-size: 18px;
+            background: #32cd32;
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            margin-top: 12px;
+        }
+
+        #timer { font-size: 48px; margin-top: 15px; }
+        #warning { color: red; font-weight: bold; }
+        #focusMsg { font-size: 24px; font-weight: bold; margin-top: 10px; color: #ffeb3b; }
+
+        .all-badges img {
+            width: 320px;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+
+<body>
+
+<h1>FocusMate – Study Focus Analyzer</h1>
+<hr>
+<br>
+
+<div class="container">
+
+    <!-- LEFT -->
+    <div class="left">
+
+        <!-- PAGE 1 -->
+        <div id="page1" class="page active">
+            <h2>📱 Select Study Apps</h2>
+
+            <div class="card"><input type="checkbox" class="app"> YouTube</div>
+            <div class="card"><input type="checkbox" class="app"> ChatGPT</div>
+            <div class="card"><input type="checkbox" class="app"> Coding IDE</div>
+            <div class="card"><input type="checkbox" class="app"> PDF Reader</div>
+
+            <div id="warning"></div>
+            <button onclick="goToDuration()">Next</button>
+        </div>
+
+        <!-- PAGE 2 -->
+        <div id="page2" class="page">
+            <h2>⏱ Set Study Duration (minutes)</h2>
+            <div class="card">
+                <input type="number" id="duration" value="60"
+                style="font-size:20px; width:70px; padding:8px; text-align:center;">
+
+                <span style="font-size:20px; margin-left:8px;">
+                   minutes
+                </span>
+            </div>
+            <button onclick="startSession()">Start Study Session</button>
+        </div>
+
+        <!-- PAGE 3 -->
+        <div id="page3" class="page">
+            <h2>📊 Study Dashboard</h2>
+
+            <div id="timer">00:00:00</div>
+
+            <button onclick="pauseTimer()">Pause</button>
+            <button onclick="resumeTimer()">Resume</button>
+            <button onclick="resetTimer()">Restart</button>
+
+            <div id="focusMsg"></div>
+
+            <div class="all-badges">
+                <img src="/static/all_badges.png" alt="All Badges">
+            </div> 
+
+        </div>
+    </div>
+
+    
+      <!-- RIGHT -->
+      <div class="right">
+         <img src="/static/book.jpg" alt="Study Image">
+      </div> 
+       
+</div> <br>
+
+<hr> <br>
+
+<!-- 📝 STUDY NOTES -->
+<div class="card"  style="margin-top:20px; width:50%; ">
+    <h3>📝 Study Notes</h3>
+
+    <textarea id="notes"
+        rows="4"
+        placeholder="Write your study notes here..."
+        style="width:90%; font-size:16px; padding:20px; border-radius:8px;">
+    </textarea>
+
+    <button onclick="saveNotes()"
+        style="background:#4CAF50;color:white;padding:20px 10px;
+               border:none;border-radius:8px;margin-top:20px;">
+        Save Notes
+    </button>
+
+    <div id="noteStatus" style="margin-top:8px;"></div>
+    <center>
+     <!-- RIGHT -->
+      <div class="right">
+         <img src="/static/bookturn.gif" alt="Study Image">
+      </div> 
+    </center>
+
+
+</div>
+
+
+
+<script>
+let totalSeconds = 0;
+let initialSeconds = 0;
+let timer;
+let paused = false;
+
+// Badge flags
+let sent30 = false;
+let sent45 = false;
+let sent60 = false;
+
+function switchPage(id) {
+    document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+}
+
+function goToDuration() {
+    if (document.querySelectorAll(".app:checked").length === 0) {
+        document.getElementById("warning").innerText =
+            "Please select at least one study app ❌";
+        return;
+    }
+    document.getElementById("warning").innerText = "";
+    switchPage("page2");
+}
+
+function startSession() {
+    const apps = [...document.querySelectorAll(".app:checked")]
+        .map(cb => cb.parentElement.innerText.trim());
+
+    fetch("/start", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apps })
+    })
+    .then(res => res.json())
+    .then(() => {
+        totalSeconds = document.getElementById("duration").value * 60;
+        initialSeconds = totalSeconds;
+        switchPage("page3");
+        startTimer();
+    });
+}
+
+function startTimer() {
+    timer = setInterval(() => {
+        if (!paused && totalSeconds > 0) {
+            totalSeconds--;
+
+            let elapsedMinutes =
+                Math.floor((initialSeconds - totalSeconds) / 60);
+
+            let h = Math.floor(totalSeconds / 3600);
+            let m = Math.floor((totalSeconds % 3600) / 60);
+            let s = totalSeconds % 60;
+
+            document.getElementById("timer").innerText =
+                `${h.toString().padStart(2,"0")}:${m.toString().padStart(2,"0")}:${s.toString().padStart(2,"0")}`;
+
+            // Badge messages
+            if (elapsedMinutes >= 30 && !sent30) { sendBadge(30); sent30 = true; }
+            if (elapsedMinutes >= 45 && !sent45) { sendBadge(45); sent45 = true; }
+            if (elapsedMinutes >= 60 && !sent60) { sendBadge(60); sent60 = true; }
+
+            if (totalSeconds === 0) {
+                clearInterval(timer);
+                alert("Session Completed 🎉");
+            }
+        }
+    }, 1000);
+}
+
+function sendBadge(min) {
+    fetch("/badge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ minutes: min })
+    })
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById("focusMsg").innerText = data.message;
+    });
+}
+
+function pauseTimer() { paused = true; }
+function resumeTimer() { paused = false; }
+function resetTimer() { location.reload(); }
+</script>
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
